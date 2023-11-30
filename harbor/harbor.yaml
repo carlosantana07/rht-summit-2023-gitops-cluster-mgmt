@@ -1,0 +1,202 @@
+## Configuration file of Harbor
+
+#The IP address or hostname to access admin UI and registry service.
+#DO NOT use localhost or 127.0.0.1, because Harbor needs to be accessed by external clients.
+hostname:  <%= p("hostname", spec.ip).downcase %>
+
+# http related config
+http:
+  # port for http, default is 80. If https enabled, this port will redirect to https port
+  port: 80
+
+<%- if p("ui_url_protocol") == "https" %>
+# https related comfig
+https:
+  # https port for harbor, default is 443
+  port: 443
+  # The path of cert and key files for nginx
+  # It is a temporary and fixed location in tile
+  certificate: /tmp/server.crt
+  private_key: /tmp/server.key
+<%- end %>
+
+# Uncomment extearnal_url if you want to enable external proxy
+# And when it enabled the hostname will no longger used
+# external_url: https://reg.mydomain.com:8433
+
+# The initial password of Harbor admin
+# It only works in first time to install harbor
+# Remember Change the admin password from UI after launching Harbor.
+harbor_admin_password: "<%= p("admin_password") %>"
+
+## Harbor DB configuration
+database:
+  #The password for the root user of Harbor DB. Change this before any production use.
+  password: "<%= p("db_password") %>"
+  # The maximum number of connections in the idle connection pool. If it <=0, no idle connections are retained.
+  max_idle_conns: 50
+  # The maximum number of open connections to the database. If it <= 0, then there is no limit on the number of open connections.
+  # Note: the default number of connections is 100 for postgres.
+  max_open_conns: 900
+  # The maximum amount of time a connection may be reused. Expired connections may be closed lazily before reuse. If it <= 0, connections are not closed due to a connection's age.
+  # The value is a duration string. A duration string is a possibly signed sequence of decimal numbers, each with optional fraction and a unit suffix, such as "300ms", "-1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+  conn_max_lifetime: 5m
+  # The maximum amount of time a connection may be idle. Expired connections may be closed lazily before reuse. If it <= 0, connections are not closed due to a connection's idle time.
+  # The value is a duration string. A duration string is a possibly signed sequence of decimal numbers, each with optional fraction and a unit suffix, such as "300ms", "-1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+  conn_max_idle_time: 0
+# The default data volume
+data_volume: /data
+
+# Harbor Storage settings by default is using /data dir on local filesystem
+# Uncomment storage_service setting If you want to using external storage
+# storage_service:
+#   # ca_bundle is the path to the custom root ca certificate, which will be injected into the truststore
+#   # of registry's and chart repository's containers.  This is usually needed when the user hosts a internal storage with self signed certificate.
+#   ca_bundle:
+
+#   # storage backend, default is filesystem, options include filesystem, azure, gcs, s3, swift and oss
+#   # for more info about this configuration please refer https://docs.docker.com/registry/configuration/
+#   filesystem:
+#     maxthreads: 100
+
+storage_service:
+  redirect:
+    disabled: <%= p("registry_storage_provider.s3.disable_redirect") %>  
+  ca_bundle: /tmp/trusted_certificates.crt
+<%- if p("registry_storage_provider.name") == "s3" %>
+# S3 storage
+  s3:
+    accesskey: <%= p("registry_storage_provider.s3.accesskey") %>                                                                                                                            
+    secretkey: <%= p("registry_storage_provider.s3.secretkey") %>                                                                                                        
+    region: <%= p("registry_storage_provider.s3.region") %>                                                                                                                                              
+    regionendpoint: <%= p("registry_storage_provider.s3.regionendpoint") %>                                                                                                                                    
+    bucket: <%= p("registry_storage_provider.s3.bucket") %>                                                                                                                              
+    secure: <%= p("registry_storage_provider.s3.secure") %>                                                                                                                                                 
+    v4auth: <%= p("registry_storage_provider.s3.v4auth") %>                                                                                                                                                       
+    chunksize: <%= p("registry_storage_provider.s3.chunksize") %>                                                                                                                                           
+    rootdirectory: <%= p("registry_storage_provider.s3.rootdirectory") %>  
+    trusted_certificates: /harbor_cust_cert/custom-ca-bundle.crt 
+<%- end %>
+<%- if p("registry_storage_provider.name") == "gcs" %>
+# GCS storage
+  gcs:
+    bucket: <%= p("registry_storage_provider.gcs.bucket") %>                                                                                                                        
+    keyfile: /var/vcap/jobs/harbor/packages/harbor-app/common/config/registry/gcs_keyfile                                                                                              
+    rootdirectory: <%= p("registry_storage_provider.gcs.rootdirectory") %>                                                                                                                      
+    chunksize: <%= p("registry_storage_provider.gcs.chunksize") %>  
+<%- end %>
+<%- if p("registry_storage_provider.name") == "azure" %>
+# Azure storage
+  azure:
+    accountname: <%= p("registry_storage_provider.azure.accountname") %> 
+    accountkey: <%= p("registry_storage_provider.azure.accountkey") %> 
+    container: <%= p("registry_storage_provider.azure.container") %> 
+    realm: <%= p("registry_storage_provider.azure.realm") %> 
+<%- end %>
+
+# Trivy configuration
+trivy:
+  # ignoreUnfixed The flag to display only fixed vulnerabilities
+  ignore_unfixed: false
+  # skipUpdate The flag to enable or disable Trivy DB downloads from GitHub
+  skip_update: <%= p("trivy.skip_update") %>
+  insecure: false
+  github_token: <%= p("trivy.github_token") %>
+  # The offline_scan option prevents Trivy from sending API requests to identify dependencies.
+  # Scanning JAR files and pom.xml may require Internet access for better detection, but this option tries to avoid it.
+  # For example, the offline mode will not try to resolve transitive dependencies in pom.xml when the dependency doesn't
+  # exist in the local repositories. It means a number of detected vulnerabilities might be fewer in offline mode.
+  # It would work if all the dependencies are in local.
+  # This option doesn't affect DB download. You need to specify "skip-update" as well as "offline-scan" in an air-gapped environment.
+  offline_scan: <%= p("trivy.offline_scan") %>
+  # Comma-separated list of what security issues to detect. Possible values are `vuln`, `config` and `secret`. Defaults to `vuln`.
+  security_check: vuln
+  # insecure The flag to skip verifying registry certificate
+  insecure: false
+  # github_token The GitHub access token to download Trivy DB
+  #
+  # Anonymous downloads from GitHub are subject to the limit of 60 requests per hour. Normally such rate limit is enough
+  # for production operations. If, for any reason, it's not enough, you could increase the rate limit to 5000
+  # requests per hour by specifying the GitHub access token. For more details on GitHub rate limiting please consult
+  # https://developer.github.com/v3/#rate-limiting
+  #
+  # You can create a GitHub token by following the instructions in
+  # https://help.github.com/en/github/authenticating-to-github/creating-a-personal-access-token-for-the-command-line
+  #
+  # github_token: xxx
+jobservice:
+  # Maximum number of job workers in job service  
+  max_job_workers: <%= p("max_job_workers") %>
+
+notification:
+  # Maximum retry count for webhook job
+  webhook_job_max_retry: 10
+
+chart:
+  absolute_url: disabled
+
+notification:
+  # Maximum retry count for webhook job
+  webhook_job_max_retry: 10
+# Log configurations
+log:
+  # options are debug, info, warn, error
+  level: info
+  local:
+    # Log files are rotated log_rotate_count times before being removed. If count is 0, old versions are removed rather than rotated.
+    rotate_count: <%= p("log_rotate_count") %>
+    # Log files are rotated only if they grow bigger than log_rotate_size bytes. If size is followed by k, the size is assumed to be in kilobytes. 
+    # If the M is used, the size is in megabytes, and if G is used, the size is in gigabytes. So size 100, size 100k, size 100M and size 100G 
+    # are all valid.
+    rotate_size: <%= p("log_rotate_size") %>
+    # The directory on your host that store log
+    location: /var/log/harbor
+
+<%- if p("log_insight_enabled") == "enabled" %>
+  # Uncomment following lines to enable external syslog endpoint.
+  external_endpoint:
+    # protocol used to transmit log to external endpoint, options is tcp or udp
+    protocol: <%= p("log_insight_protocol") %>
+    # The host of external endpoint
+    host: <%= p("log_insight_host") %>
+    # Port of external endpoint
+    port: <%= p("log_insight_port") %>
+<%- end %>
+#This attribute is for migrator to detect the version of the .cfg file, DO NOT MODIFY!
+_version: 2.7.0
+
+# UAA cert
+<%- if p("auth_mode") == "uaa_auth" %>
+uaa:
+  ca_file: /data/cert/uaa_ca.crt
+<%- end %>
+
+# Global proxy
+# Config http proxy for components, e.g. http://my.proxy.com:3128
+# Components doesn't need to connect to each others via http proxy.
+# Remove component from `components` array if want disable proxy
+# for it. If you want use proxy for replication, MUST enable proxy
+# for core and jobservice, and set `http_proxy` and `https_proxy`.
+# Add domain to the `no_proxy` field, when you want disable proxy
+# for some special registry.
+proxy:
+  http_proxy: <%= p("http_proxy") %>
+  https_proxy: <%= p("https_proxy") %>
+  no_proxy: <%= p("no_proxy") %>
+  components:
+    - core
+    - jobservice
+    - trivy
+
+upload_purging:
+  enabled: true
+  # remove files in _upload directories which exist for a period of time, default is one week.
+  age: 168h
+  # the interval of the purge operations
+  interval: 24h
+  dryrun: false    
+
+# Cache related config
+cache:
+  enabled: false
+  expire_hours: 24  
