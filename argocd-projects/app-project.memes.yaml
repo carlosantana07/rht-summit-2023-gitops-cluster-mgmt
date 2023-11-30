@@ -5,7 +5,7 @@ metadata:
   name: project-memes
   # The namespace in which to apply this resource. This should be where
   # the Argo CD instance is deployed, i.e the "openshift-gitops" namespace
-  namespace: openshift-gitops
+  namespace: argocd
 spec:
   # Allow the creation of certain cluster scoped resources if desired. This
   # is not enabled in this example, since this AppProject is only concerned
